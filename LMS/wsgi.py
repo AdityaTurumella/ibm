@@ -10,6 +10,7 @@ https://docs.djangoproject.com/en/2.2/howto/deployment/wsgi/
 import os
 
 from django.core.wsgi import get_wsgi_application
+fromdjango.core.wsgiimportget_wsgi_applicationfromdj_staticimportCling application = Cling(get_wsgi_application())
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'LMS.settings')
 
