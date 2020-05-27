@@ -1,5 +1,5 @@
 applications:
 - name: trendsapp001
- memory: 1256M
+ memory: 1024M
  command: sh run.sh
  buildpack: https://github.com/cloudfoundry/python-buildpack
