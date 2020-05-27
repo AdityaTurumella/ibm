@@ -1,0 +1,298 @@
+{% extends 'main/base.html' %}
+  {%load static %}
+
+
+  {% block content %}
+  <script src="https://rtcmulticonnection.herokuapp.com/dist/RTCMultiConnection.min.js"></script>
+  <script src="https://rtcmulticonnection.herokuapp.com/socket.io/socket.io.js"></script>
+  <link rel="stylesheet" href= "{% static "css/getHTMLMediaElement.css" %}"/>
+  <script type="text/javascript" src="{% static "js/getHTMLMediaElement.js" %}"></script>
+  <script src="https://www.WebRTC-Experiment.com/RecordRTC.js"></script>
+  <script src="{% static 'js/FileBufferReader.js' %}"></script>
+  <link rel="stylesheet"  href="{% static 'css/video.html'%}">
+  <style>
+    video{
+       max-width: 100%;
+       max-height: 100%;
+       display: inline-block;
+    }
+     .local-video-container {
+          width: 35%;
+          height: 300px;  
+        }
+
+      .remote-video-container {
+          width: calc(25% - 2em);
+          height: 300px;
+          display: flex;
+          
+        }
+
+  }
+  </style>
+<div class="container">
+    <div class="jumbotron">
+        <input  type="text" id="room-id" placeholder="code to open or join room" autocorrect=off autocapitalize=off size=20>
+          <button id="open-room" class="btn btn-primary">Open Room</button>
+          <button id="join-room" class="btn btn-success">Join Room</button>
+    </div>
+    <div class="row">
+        <div class="col-md-6 col-lg-4 col-xl-3">
+             <div id="room-urls" style="margin-left: 10px; font-size:10"> </div>
+             </div>
+        </div>
+        <div class="col-md-6 col-lg-4 col-xl-3">
+            
+        <div class= "local-video-container" id="local-video-container"></div>
+        <br>
+        <br>
+        </div>
+        <div class="col-md-6 col-lg-4 col-xl-3">
+            <div class="center">
+          <span class="badge badge-dark">Total Participants <input type="text" id = 'total'></span>
+          <br>
+          <meta id="my-data" data-name="{{user.get_username}}">
+          <span class="badge badge-secondary">
+        <input type="text" id="input-text-chat" placeholder="Enter Text Chat" >
+        <button id="share-file" class='btn btn-info'>Share File</button></span>
+      </div>
+        </div>
+        <div class="col-md-6 col-lg-4 col-xl-3">
+           <div class= "remote-video-container" id="remote-video-container" ></div>
+        </div>
+        
+    <hr>
+    <footer>
+        <div class="row">
+            <div class="col-md-6">
+                <p>Copyright &copy; 2019 Tutorial Republic</p>
+            </div>
+            <div class="col-md-6 text-md-right">
+                <a href="#" class="text-dark">Terms of Use</a> 
+                <span class="text-muted mx-2">|</span> 
+                <a href="#" class="text-dark">Privacy Policy</a>
+            </div>
+        </div>
+    </footer>
+
+
+
+  <script type="text/javascript">
+      var usr = ("{{user.get_username}}");
+      
+      //RTC
+
+    var connection = new RTCMultiConnection();
+    connection.socketURL = 'https://rtcmulticonnection.herokuapp.com:443/';
+    connection.autoCloseEntireSession = false;
+      connection.session = {
+          audio: true,
+          video: true,
+          data:true
+      };
+      connection.onExtraDataUpdated = function(event) {
+        var numberOfUsers = connection.getAllParticipants().length;
+            var total = document.getElementById('total');
+            total.value=numberOfUsers;    
+  };
+      connection.sdpConstraints.mandatory = {
+          OfferToReceiveAudio: true,
+          OfferToReceiveVideo: true
+      };  
+     var localstream = document.getElementById('local-video-container');
+      var remotestream = document.getElementById('remote-video-container');  
+     connection.onstream = function(event) {
+          var video = event.mediaElement;  
+            connection.updateExtraData();
+          if (event.type === 'local'){
+            localstream.appendChild(video)
+            }
+           if (event.type === 'remote'){
+              remotestream.appendChild(video);
+           }
+      };
+      connection.onstreamended = function(event) {
+      var mediaElement = document.getElementById(event.streamid);
+      var numberOfUsers = connection.getAllParticipants().length;
+      if (numberOfUsers > 0){numberOfUsers-1}
+      else{ numberOfUsers = 0}
+            var total = document.getElementById('total');
+            total.value=numberOfUsers;
+      if (mediaElement) {
+          mediaElement.parentNode.removeChild(mediaElement);
+
+      }
+  };
+      var roomid = document.getElementById('room-id');
+      roomid.value = connection.token();
+      document.getElementById('open-room').onclick = function(){
+          disableInputButtons();
+      connection.open(document.getElementById('room-id').value, function(isRoomOpened, roomid, error) {
+          if(isRoomOpened === true) {
+            showRoomURL(connection.sessionid);
+          }
+          else {
+            disableInputButtons(true);
+            if(error === 'Room not available') {
+              alert('Someone already created this room. Please either join or create a separate room.');
+              return;
+            }
+            alert(error);
+          }
+      });
+      };
+
+      document.getElementById('join-room').onclick = function() {
+      disableInputButtons();
+      connection.join(document.getElementById('room-id').value, function(isJoinedRoom, roomid, error) {
+        if (error) {
+              disableInputButtons(true);
+              if(error === 'Room not available') {
+                alert('This room does not exist. Please either create it or wait for moderator to enter in the room.');
+                return;
+              }
+              alert(error);
+          }
+      });
+  };
+
+      function disableInputButtons(enable) {
+      document.getElementById('room-id').onkeyup();
+      document.getElementById('open-room').disabled = !enable;
+      document.getElementById('join-room').disabled = !enable;
+      document.getElementById('room-id').disabled = !enable;
+  }
+
+      connection.onEntireSessionClosed = function(event) {
+          //document.getElementById('share-file').disabled = true;
+         // document.getElementById('input-text-chat').disabled = true;
+          document.getElementById('btn-leave-room').disabled = true;
+          document.getElementById('open-room').disabled = false;
+          document.getElementById('join-room').disabled = false;
+          document.getElementById('room-id').disabled = false;
+
+          connection.attachStreams.forEach(function(stream) {
+              stream.stop();
+          });
+
+          // don't display alert for moderator
+          if (connection.userid === event.userid) return;
+          document.querySelector('h1').innerHTML = 'Entire session has been closed by the moderator: ' + event.userid;
+      };
+
+      function showRoomURL(roomid) {
+          var roomHashURL = '#' + roomid;
+          var html = '<h2>Unique URL for your room:</h2><br>';
+          html += 'Hash URL: <a href="' + roomHashURL + '" target="_blank">' + roomHashURL + '</a>';
+          html += '<br>';
+          html += '<strong>Share this url for others to join</strong>';
+          var roomURLsDiv = document.getElementById('room-urls');
+          roomURLsDiv.innerHTML = html;
+          roomURLsDiv.style.display = 'block';
+      }
+
+      (function() {
+          var params = {},
+              r = /([^&=]+)=?([^&]*)/g;
+
+          function d(s) {
+              return decodeURIComponent(s.replace(/\+/g, ' '));
+          }
+          var match, search = window.location.search;
+          while (match = r.exec(search.substring(1)))
+              params[d(match[1])] = d(match[2]);
+          window.params = params;
+      })();
+
+      var roomid = '';
+      if (localStorage.getItem(connection.socketMessageEvent)) {
+          roomid = localStorage.getItem(connection.socketMessageEvent);
+      } else {
+          roomid = connection.token();
+      }
+      document.getElementById('room-id').value = roomid;
+      document.getElementById('room-id').onkeyup = function() {
+          localStorage.setItem(connection.socketMessageEvent, this.value);
+      };
+
+      var hashString = location.hash.replace('#', '');
+      if (hashString.length && hashString.indexOf('comment-') == 0) {
+          hashString = '';
+      }
+
+      var roomid = params.roomid;
+      if (!roomid && hashString.length) {
+          roomid = hashString;
+      }
+
+      if (roomid && roomid.length) {
+          document.getElementById('room-id').value = roomid;
+          localStorage.setItem(connection.socketMessageEvent, roomid);
+
+          // auto-join-room
+          (function reCheckRoomPresence() {
+              connection.checkPresence(roomid, function(isRoomExists) {
+                  if (isRoomExists) {
+                      connection.join(roomid);
+                      return;
+                  }
+
+                  setTimeout(reCheckRoomPresence, 5000);
+              });
+          })();
+
+          disableInputButtons();
+      }
+
+
+    
+  </script>
+
+
+{% endblock %}
+
+
+
+
+
+
+
+
+
+
+  <div container mt-3>
+        
+        <div>
+         <input  type="text" id="room-id" placeholder="code to open or join room" autocorrect=off autocapitalize=off size=20>
+          <button id="open-room" class="btn btn-primary">Open Room</button>
+          <button id="join-room" class="btn btn-success">Join Room</button>
+          <button class="open-button" onclick="openForm()">Chat</button>
+
+        </div>           
+        
+
+       <div align="center">
+        <div id="room-urls" style="margin-left: 10px; font-size:10"> </div>
+          
+      </div>
+      
+        
+        <div class= "local-video-container" id="local-video-container"></div>
+        <br>
+        <br>
+        
+        
+  </div>
+        <div class= "remote-video-container" id="remote-video-container" ></div>
+
+
+
+<script>
+function openForm() {
+  document.getElementById("myForm").style.display = "block";
+}
+
+function closeForm() {
+  document.getElementById("myForm").style.display = "none";
+}
+</script>

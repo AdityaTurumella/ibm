@@ -1,0 +1,408 @@
+{% extends 'main/base.html' %}
+  {%load static %}
+  {% block content %}
+  <script src="https://rtcmulticonnection.herokuapp.com/dist/RTCMultiConnection.min.js"></script>
+  <script src="https://rtcmulticonnection.herokuapp.com/socket.io/socket.io.js"></script>
+  <link rel="stylesheet" href= "{% static "css/getHTMLMediaElement.css" %}"/>
+  <script type="text/javascript" src="{% static "js/getHTMLMediaElement.js" %}"></script>
+  <script src="https://www.WebRTC-Experiment.com/RecordRTC.js"></script>
+  <script src="{% static 'js/FileBufferReader.js' %}"></script>
+
+
+  <style>
+    video{
+       max-width: 100%;
+       max-height: 100%;
+       display: inline-block;
+    }
+     .local-video-container {
+          width: 35%;
+          
+        }
+
+      .remote-video-container {
+          width: calc(25% - 2em);
+          
+          display: flex;
+          
+        }
+
+
+/* The popup chat - hidden by default */
+.chat-popup {
+  display: none;
+  position: fixed;
+  bottom: 0;
+  right: 15px;
+  border: 3px solid #f1f1f1;
+  z-index: 9;
+  overflow-y: auto;
+    overflow-y: auto;
+    height: calc(100% - 50px - 28px);
+}
+
+
+  .chat-output{
+         display: flex;
+         flex-direction: column-reverse;
+           overflow-y auto;
+    overflow-y: auto;
+    height: calc(100% - 50px - 28px);
+
+  }
+
+  .file-container{
+         display:inline-flex;
+         flex-direction: column-reverse;
+           
+
+  }
+.chat-container{
+  width: 4%;
+   overflow-y: auto;
+    overflow-y: auto;
+    height: calc(100% - 50px - 28px);
+
+  }
+
+/* Add styles to the form container */
+.form-container {
+  max-width: 300px;
+  padding: 10px;
+  background-color: white;
+   overflow-y: auto;
+    overflow-y: auto;
+    height: calc(100% - 50px - 28px);
+}
+
+/* Full-width textarea */
+.form-container textarea {
+  width: 100%;
+  padding: 15px;
+  margin: 5px 0 22px 0;
+  border: none;
+  background: #f1f1f1;
+  resize: none;
+  min-height: 200px;
+}
+
+/* When the textarea gets focus, do something */
+.form-container textarea:focus {
+  background-color: #ddd;
+  outline: none;
+}
+
+.form-container .btn:hover, .open-button:hover {
+  opacity: 1;
+}
+
+.badge-error {
+  background-color: #b94a48;
+}
+</style>
+
+
+<div class="header">
+  <div class="progress-container">
+    <div class="progress-bar" id="myBar"></div>
+  </div>  
+</div>
+
+ 
+<div class="chat-popup" id="myForm">
+  
+  <div class="form-container">
+    <h1>Chat</h1>
+
+    <label for="msg"><b>Message</b></label>
+       <div id="chat-container" align="center">
+                <div id="file-container"></div>
+                <div class="chat-output"></div>
+            </div>
+    <input  placeholder="Type message.." name="msg" id="input-text-chat" required></input>
+   
+    <button type="button" class="btn-danger" onclick="closeForm()">Close</button>
+    <button type='button' class="btn btn-primary" id="share-file" >Share File</button>  </div>
+</div>
+
+  <div container mt-3>
+        
+        <div>
+          <input  type="text" id="room-id"  placeholder="code to open or join room" autocorrect=off autocapitalize=off size=20>
+          <button id="open-room" class="btn btn-primary custom">Open Room</button>
+          <button id="join-room" class="btn btn-success custom">Join Room</button>
+                   <button type="button" id="btn-leave-room" class="btn btn-danger"disabled=""> Leave Room</button>
+          <button class="btn btn-warning"><a href="{%url 'code'%}" target="_blank">Code</a>
+           </button>
+          <button type="button" id = 'notif' class="btn btn-info" onclick="openForm()">
+           Chat <span class="badge  ml-2"></span>
+           </button>
+          <button id="tot" class="custom">Total Participants  <input type="text" id = 'total' disabled></button >
+
+        </div>           
+        
+       <div align="center">
+        <div id="room-urls" style="margin-left: 10px; font-size:10"> </div>
+          
+      </div>
+      
+        
+        <div class= "local-video-container" id="local-video-container"></div>
+        <br>
+        <br>
+        
+        <div class= "remote-video-container" id="remote-video-container" ></div>
+
+
+
+  <script type="text/javascript">
+function openForm() {
+  document.getElementById("myForm").style.display = "block";
+}
+
+function closeForm() {
+  document.getElementById("myForm").style.display = "none";
+  i = 0
+}
+
+function popupwindow(url, title, w, h) {
+  var left = (screen.width/2)-(w/2);
+  var top = (screen.height/2)-(h/2);
+  return window.open(url, title, 'toolbar=no, location=no, directories=no, status=no, menubar=no, scrollbars=no, resizable=no, copyhistory=no, width='+w+', height='+h+', top='+top+', left='+left);
+} 
+    var i = 0;
+    var notif = document.getElementById('notif');
+         window.enableAdapter = true; // enable adapter.js
+    var usr = ("{{user.get_username}}");
+    document.getElementById('input-text-chat').onkeyup = function(e) {
+        if (e.keyCode != 13) return;
+
+        // removing trailing/leading whitespace
+        this.value = this.value.replace(/^\s+|\s+$/g, '');
+        if (!this.value.length) return;
+
+        connection.send(this.value);
+        appendDIV(this.value);
+        this.value = '';
+    };
+
+document.getElementById('share-file').onclick = function() {
+        var fileSelector = new FileSelector();
+        fileSelector.selectSingleFile(function(file) {
+            connection.send(file);
+        });
+    };
+    var chatContainer = document.querySelector('.chat-output');
+
+    function appendDIV(event) {
+        var div = document.createElement('div');
+        i = i+1;
+        notif.value=i;
+        div.innerHTML = event.data || event;
+        div.innerHTML+=' by ' + usr
+        chatContainer.insertBefore(div, chatContainer.firstChild);
+
+        div.tabIndex = 0;
+        div.focus();
+
+        document.getElementById('input-text-chat').focus();
+    }
+        document.getElementById('btn-leave-room').onclick = function() {
+        this.disabled = true;
+
+        if (connection.isInitiator) {
+
+            connection.closeEntireSession(function() {
+                document.querySelector('h1').innerHTML = 'Entire session has been closed.';
+            });
+        } else {
+            connection.leave();
+        }
+    };
+      
+      //RTC
+
+    var connection = new RTCMultiConnection();
+    connection.socketURL = 'https://rtcmulticonnection.herokuapp.com:443/';
+    connection.autoCloseEntireSession = false;
+    connection.enableFileSharing = true;
+      connection.session = {
+          audio: true,
+          video: true,
+          data:true
+      };
+      connection.onExtraDataUpdated = function(event) {
+        var numberOfUsers = connection.getAllParticipants().length;
+            var total = document.getElementById('total');
+            total.value=numberOfUsers;    
+  };
+      connection.sdpConstraints.mandatory = {
+          OfferToReceiveAudio: true,
+          OfferToReceiveVideo: true
+      };  
+     var localstream = document.getElementById('local-video-container');
+      var remotestream = document.getElementById('remote-video-container');  
+     connection.onstream = function(event) {
+          var video = event.mediaElement;  
+            connection.updateExtraData();
+          if (event.type === 'local'){
+            localstream.appendChild(video)
+            }
+           if (event.type === 'remote'){
+              remotestream.appendChild(video);
+           }
+      };
+      connection.onstreamended = function(event) {
+      var mediaElement = document.getElementById(event.streamid);
+      var numberOfUsers = connection.getAllParticipants().length;
+      if (numberOfUsers > 0){numberOfUsers-1}
+      else{ numberOfUsers = 0}
+            var total = document.getElementById('total');
+            total.value=numberOfUsers;
+      if (mediaElement) {
+          mediaElement.parentNode.removeChild(mediaElement);
+
+      }
+  };
+      var roomid = document.getElementById('room-id');
+      roomid.value = connection.token();
+      document.getElementById('open-room').onclick = function(){
+          disableInputButtons();
+      connection.open(document.getElementById('room-id').value, function(isRoomOpened, roomid, error) {
+          if(isRoomOpened === true) {
+            showRoomURL(connection.sessionid);
+          }
+          else {
+            disableInputButtons(true);
+            if(error === 'Room not available') {
+              alert('Someone already created this room. Please either join or create a separate room.');
+              return;
+            }
+            alert(error);
+          }
+      });
+      };
+
+      document.getElementById('join-room').onclick = function() {
+      disableInputButtons();
+      connection.join(document.getElementById('room-id').value, function(isJoinedRoom, roomid, error) {
+        if (error) {
+              disableInputButtons(true);
+              if(error === 'Room not available') {
+                alert('This room does not exist. Please either create it or wait for moderator to enter in the room.');
+                return;
+              }
+              alert(error);
+          }
+      });
+  };
+
+  connection.onmessage = appendDIV;
+            connection.filesContainer = document.getElementById('file-container');
+
+            connection.onopen = function() {
+                document.getElementById('share-file').disabled = false;
+                document.getElementById('input-text-chat').disabled = false;
+                document.getElementById('btn-leave-room').disabled = false;
+            };
+
+
+      function disableInputButtons(enable) {
+      document.getElementById('room-id').onkeyup();
+      document.getElementById('open-room').disabled = !enable;
+      document.getElementById('join-room').disabled = !enable;
+      document.getElementById('room-id').disabled = !enable;
+  }
+
+      connection.onEntireSessionClosed = function(event) {
+          document.getElementById('share-file').disabled = true;
+          document.getElementById('input-text-chat').disabled = true;
+          document.getElementById('btn-leave-room').disabled = true;
+          document.getElementById('open-room').disabled = false;
+          document.getElementById('join-room').disabled = false;
+          document.getElementById('room-id').disabled = false;
+          document.getElementById('btn-leave-room').disabled = true;
+
+          connection.attachStreams.forEach(function(stream) {
+              stream.stop();
+          });
+
+          // don't display alert for moderator
+          if (connection.userid === event.userid) return;
+          document.querySelector('h1').innerHTML = 'Entire session has been closed by the moderator: ' + event.userid;
+      };
+
+      function showRoomURL(roomid) {
+          var roomHashURL = '#' + roomid;
+          var html = '<h2>Unique URL for your room:</h2><br>';
+          html += 'Hash URL: <a href="' + roomHashURL + '" target="_blank">' + roomHashURL + '</a>';
+          html += '<br>';
+          html += '<strong>Share this url for others to join</strong>';
+          var roomURLsDiv = document.getElementById('room-urls');
+          roomURLsDiv.innerHTML = html;
+          roomURLsDiv.style.display = 'block';
+      }
+
+      (function() {
+          var params = {},
+              r = /([^&=]+)=?([^&]*)/g;
+
+          function d(s) {
+              return decodeURIComponent(s.replace(/\+/g, ' '));
+          }
+          var match, search = window.location.search;
+          while (match = r.exec(search.substring(1)))
+              params[d(match[1])] = d(match[2]);
+          window.params = params;
+      })();
+
+      var roomid = '';
+      if (localStorage.getItem(connection.socketMessageEvent)) {
+          roomid = localStorage.getItem(connection.socketMessageEvent);
+      } else {
+          roomid = connection.token();
+      }
+      document.getElementById('room-id').value = roomid;
+      document.getElementById('room-id').onkeyup = function() {
+          localStorage.setItem(connection.socketMessageEvent, this.value);
+      };
+
+      var hashString = location.hash.replace('#', '');
+      if (hashString.length && hashString.indexOf('comment-') == 0) {
+          hashString = '';
+      }
+
+      var roomid = params.roomid;
+      if (!roomid && hashString.length) {
+          roomid = hashString;
+      }
+
+      if (roomid && roomid.length) {
+          document.getElementById('room-id').value = roomid;
+          localStorage.setItem(connection.socketMessageEvent, roomid);
+
+          // auto-join-room
+          (function reCheckRoomPresence() {
+              connection.checkPresence(roomid, function(isRoomExists) {
+                  if (isRoomExists) {
+                      connection.join(roomid);
+                      return;
+                  }
+
+                  setTimeout(reCheckRoomPresence, 5000);
+              });
+          })();
+
+          disableInputButtons();
+      }
+
+
+    
+  </script>
+
+
+{% endblock %}
+
+
+
+

@@ -1,0 +1,26 @@
+{% extends 'main/base.html' %}
+{% block content %}
+
+
+    <!-- Compiled and minified CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+
+    <!-- Compiled and minified JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+            
+</style>
+
+<div class='container'>
+
+    <div class="card-panel lighten-2  hoverable">
+
+    <form method='POST'>
+        {%csrf_token%}
+        {{form.as_p}}
+        <br>
+        <button  class ='btn' type="submit" >Register</button>
+    </form>
+     If You already had an account ,<a href="/login"><strong>Login</strong></a> instead.
+</div>
+</div>
+{% endblock %}
