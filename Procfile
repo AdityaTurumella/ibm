@@ -1,1 +1,1 @@
-web: gunicorn hellodjango.wsgi --workers 3
+web: gunicorn simpledjango.wsgi --workers 2
